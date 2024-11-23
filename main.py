@@ -1,23 +1,36 @@
+import discord
+from discord.ext import commands
+import os, asyncio
+
+#import all of the cogs
+from help_cog import help_cog
+from music_cog import music_cog
 from typing import Final
 import os
 import openai
-
 from dotenv import load_dotenv
 from discord import Intents, Client, Message
+from discord.ext import commands
+from discord.utils import get
+from discord import FFmpegPCMAudio
+from yt_dlp import YoutubeDL  # Updated to use yt_dlp
 from responses import get_response
 
-# STEP 0: LOAD OUR TOKEN FROM SOMEWHERE SAFE
+# STEP 0: LOAD ENVIRONMENT VARIABLES
 load_dotenv()
 TOKEN: Final[str] = os.getenv('DISCORD_TOKEN')
 openai.api_key = os.getenv('OPENAI_KEY')
 
 # STEP 1: BOT SETUP
 intents: Intents = Intents.default()
-intents.message_content = True  # NOQA
-client: Client = Client(intents=intents)
+intents.message_content = True
+intents.voice_states = True
+intents.guilds = True
+
+client: commands.Bot = commands.Bot(command_prefix='.', intents=intents)
 
 
-# STEP 2: MESSAGE FUNCTIONALITY
+# STEP 2: AI CHAT FUNCTIONALITY
 async def send_message(message: Message, user_message: str) -> None:
     if not user_message:
         print('(Message was empty because intents were not enabled probably)')
@@ -33,12 +46,6 @@ async def send_message(message: Message, user_message: str) -> None:
         print(e)
 
 
-# STEP 3: HANDLING THE STARTUP FOR OUR BOT
-@client.event
-async def on_ready() -> None:
-    print(f'{client.user} is now running!')
-
-
 @client.event
 async def on_message(message: Message) -> None:
     if message.author == client.user:
@@ -50,15 +57,19 @@ async def on_message(message: Message) -> None:
 
     print(f'[{channel}] {username}: "{user_message}"')
     await send_message(message, user_message)
+    await client.process_commands(message)
 
 
-# STEP 5: MAIN ENTRY POINT
-def main() -> None:
-    client.run(token=TOKEN)
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix='/', intents=intents)
 
+#remove the default help command so that we can write out own
+bot.remove_command('help')
 
-if __name__ == '__main__':
-    main()
+async def main():
+    async with bot:
+        await bot.add_cog(help_cog(bot))
+        await bot.add_cog(music_cog(bot))
+        await bot.start(TOKEN)
 
-
-
+asyncio.run(main())
